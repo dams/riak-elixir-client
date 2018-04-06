@@ -12,6 +12,12 @@ defmodule Riak.Index do
     handle_query_response(response)
   end
 
+  # specially for "$bucket" and "$key" indexes, which should not have _int or _bin suffix added
+  defpool query(pid, bucket, name, key, opts) when is_pid(pid) do
+    response = get_index_eq(pid, bucket, name, key, opts)
+    handle_query_response(response)
+  end
+
   @doc """
   @deprecated There are performance issues with 2i, please use another query strategy.
   Execute a secondary index range query.
