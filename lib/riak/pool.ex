@@ -15,13 +15,16 @@ defmodule Riak.Pool do
 
 
   """
+
+  require Logger
+
   defmacro defpool(args, do: block) do
     {{name, _, args}, guards} = extract_guards(args)
     [_pid_arg | other_args] = args
     has_guards = (guards != [])
     quote do
       def unquote(name)(group_name,unquote_splicing(other_args)) when is_atom(group_name) do
-        pid = take_group_member(group_name, 500)
+        pid = take_group_member(group_name, 5_000)
         case pid do
           :error_no_members -> :connection_pool_exhausted
           _ ->
@@ -40,7 +43,7 @@ defmodule Riak.Pool do
         end
       end
       def unquote(name)(unquote_splicing(other_args)) do
-        pid = take_group_member(:riak, 500)
+        pid = take_group_member(:riak, 5_000)
         case pid do
           :error_no_members -> :connection_pool_exhausted
           _ ->
@@ -54,12 +57,14 @@ defmodule Riak.Pool do
 
   def take_group_member(group_name, timeout \\ 100)
   def take_group_member(_, timeout) when timeout <= 0 do
+    Logger.error(fn -> "Riak Pooler error: no member in pool, failing !" end)
     :error_no_members
   end
   def take_group_member(group_name, timeout) do
     case :pooler.take_group_member(group_name) do
       :error_no_members ->
         #should probably log a warning / error here so the operator knows something is wrong
+        Logger.warn(fn -> "Riak Pooler warning: no member in pool, retrying" end)
         :timer.sleep(100)
         take_group_member(group_name, timeout - 100)
         pid -> pid
